@@ -1,0 +1,33 @@
+{
+  "name": "bse-announcement-analyzer",
+  "version": "1.0.0",
+  "description": "Stock Exchange Corporate Announcement Analyzer & RAG Insights Backend",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test:sample": "node test/test-sample.js"
+  },
+  "keywords": ["bse", "rag", "pdf-extraction", "groq", "llm", "express", "fintech"],
+  "author": "Antigravity",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "bullmq": "^5.41.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "groq-sdk": "^0.15.0",
+    "ioredis": "^5.4.2",
+    "p-limit": "^6.2.0",
+    "pdf-parse": "^1.1.1",
+    "tesseract.js": "^5.1.1",
+    "uuid": "^11.1.0",
+    "winston": "^3.17.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}
