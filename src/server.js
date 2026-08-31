@@ -16,6 +16,7 @@ async function startServer() {
       logger.info(` Environment: ${config.nodeEnv}`);
       logger.info(` Port:        ${config.port}`);
       logger.info(` Health:      http://localhost:${config.port}/health`);
+      logger.info(` BSE Feed:    http://localhost:${config.port}/api/bse/corporate-announcements`);
       logger.info(` Analyze API: http://localhost:${config.port}/api/announcements/analyze`);
       logger.info(` LLM Model:   ${config.groq.model}`);
       logger.info(`====================================================`);

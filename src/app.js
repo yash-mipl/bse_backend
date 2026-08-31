@@ -1,13 +1,26 @@
 import express from 'express';
 import cors from 'cors';
+import { config } from './config/env.js';
 import { logger } from './utils/logger.js';
 import announcementRoutes from './routes/announcementRoutes.js';
+import bseRoutes from './routes/bse.routes.js';
 import healthRoutes from './routes/healthRoutes.js';
 
 const app = express();
 
 // Middlewares
-app.use(cors());
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || config.cors.origins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error('Not allowed by CORS'));
+    },
+  }),
+);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -25,6 +38,7 @@ app.use((req, res, next) => {
 app.use('/health', healthRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/api/bse', bseRoutes);
 
 // Welcome / Root route
 app.get('/', (req, res) => {
@@ -33,6 +47,7 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     documentation: {
       health: 'GET /health',
+      corporateAnnouncements: 'POST /api/bse/corporate-announcements',
       analyze: 'POST /api/announcements/analyze',
       analyzeBatch: 'POST /api/announcements/analyze-batch',
       queueAsync: 'POST /api/announcements/queue',

@@ -33,5 +33,21 @@ export const config = {
   
   http: {
     userAgent: process.env.HTTP_USER_AGENT || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-  }
+  },
+
+  bse: {
+    apiUrl:
+      process.env.BSE_API_URL ||
+      'https://dfws.bseindia.com/DataFeedService/api/DataFeed/Get_CorpAnnouncement/w',
+    username: process.env.BSE_USERNAME || '',
+    password: process.env.BSE_PASSWORD || '',
+    timeoutMs: parseInt(process.env.BSE_API_TIMEOUT_MS || '10000', 10),
+  },
+
+  cors: {
+    origins: (process.env.CORS_ORIGINS || 'http://localhost:5173')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  },
 };
