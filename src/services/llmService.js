@@ -27,6 +27,7 @@ export class LlmService {
     const dateofMeeting = announcement.DateofMeeting || 'N/A';
     const attachmentUrl = announcement.ATTACHMENTURL || announcement.attachmentUrl || 'N/A';
 
+
     const systemPrompt = `You are an Indian stock market corporate announcement analyst.
 
 Your task is to analyze a BSE corporate announcement and convert it into a fast, factual, decision-support summary for a trader or investor.
