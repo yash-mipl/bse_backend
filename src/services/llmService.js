@@ -11,106 +11,168 @@ export class LlmService {
   }
 
   /**
-   * Build category-specific prompt instructions based on announcement descriptor
+   * Build comprehensive prompt following the institutional Indian stock market analyst guidelines
    */
-  getCategoryInstructions(descriptor = '', announceType = '') {
-    const descLower = (descriptor || '').toLowerCase();
-    const typeLower = (announceType || '').toLowerCase();
+  buildPrompt(announcement, documentText) {
+    const scripCode = announcement.SCRIP_CD || announcement.scripCode || 'N/A';
+    const companyName = announcement.CompanyName || announcement.companyName || 'N/A';
+    const dtTm = announcement.DT_TM || announcement.dateTime || 'N/A';
+    const headLine = announcement.HeadLine || announcement.headline || 'N/A';
+    const newsSub = announcement.NewsSub || announcement.subject || 'N/A';
+    const newsBody = announcement.NewsBody || announcement.description || 'N/A';
+    const descriptor = announcement.Descriptor || 'N/A';
+    const criticalNews = announcement.CriticalNews || 'N/A';
+    const typeofAnnounce = announcement.TypeofAnnounce || 'N/A';
+    const typeofMeeting = announcement.TypeofMeeting || 'N/A';
+    const dateofMeeting = announcement.DateofMeeting || 'N/A';
+    const attachmentUrl = announcement.ATTACHMENTURL || announcement.attachmentUrl || 'N/A';
 
-    if (descLower.includes('book closure') || descLower.includes('record date')) {
-      return `CATEGORY: Book Closure / Record Date Intimation
-SPECIAL INSTRUCTIONS:
-- Extract Book Closure start date and end date (and whether both days are inclusive).
-- Extract Record Date / Cut-off date for voting or dividend eligibility if specified.
-- Identify the explicit purpose (e.g. 32nd Annual General Meeting, Dividend payment, Rights issue).
-- Highlight whether e-voting dates or AGM dates are specified.`;
+    const systemPrompt = `You are an Indian stock market corporate announcement analyst.
+
+Your task is to analyze a BSE corporate announcement and convert it into a fast, factual, decision-support summary for a trader or investor.
+
+IMPORTANT RULES:
+1. Use only the information provided in the BSE announcement and attached document text.
+2. Do not invent, assume, estimate, or hallucinate facts, numbers, financial impact, margins, or company information.
+3. Do not give Buy, Sell, Hold, Target Price, or expected stock-price movement.
+4. Focus on information that could matter to a stock market participant.
+5. Remove repetitive regulatory/legal wording unless it is important to understanding the event.
+6. If the attachment/document provides more detailed information than the headline, prioritize the document.
+7. Preserve important numbers exactly as stated, including:
+   - Rupee values, Order values, Revenue, EBITDA, PAT / Profit / Loss, Percentages, Growth rates, Margins, Shareholding, Acquisition values, Dividend amounts, Quantities, Capacity, Dates, Timelines.
+8. Clearly distinguish facts from AI interpretation.
+9. If information required for proper interpretation is missing, explicitly mention it under "missing_information".
+10. Keep the language concise, simple and suitable for someone who wants to understand the announcement within seconds.
+11. Do not repeat the same information across multiple sections unnecessarily.
+12. If there is not enough information to determine sentiment or materiality confidently, select Neutral or Medium/Low as appropriate and explain why.
+
+OUTPUT FORMAT:
+Return ONLY valid JSON matching the exact schema. Do not use markdown backticks.`;
+
+    const userPrompt = `BSE ANNOUNCEMENT DATA
+
+Scrip Code:
+${scripCode}
+
+Company Name:
+${companyName}
+
+Announcement Date & Time:
+${dtTm}
+
+Headline:
+${headLine}
+
+Subject:
+${newsSub}
+
+Announcement Description:
+${newsBody}
+
+Descriptor:
+${descriptor}
+
+Critical News:
+${criticalNews}
+
+Announcement Type:
+${typeofAnnounce}
+
+Meeting Type:
+${typeofMeeting}
+
+Meeting Date:
+${dateofMeeting}
+
+Attachment URL:
+${attachmentUrl}
+
+ATTACHMENT / DOCUMENT CONTENT
+
+${documentText || newsBody || 'No attachment text available.'}
+
+--------------------------------------------------
+
+STEP 1: CLASSIFY THE ANNOUNCEMENT
+Select the most appropriate category from:
+Financial Results | Order Win / Contract | Acquisition / Merger | Investment / Divestment | Fund Raising | Dividend | Buyback | Bonus / Stock Split | Board Meeting | Management Change | Promoter / Shareholding Change | Regulatory / Legal | Credit Rating | Capacity Expansion | New Product / Business Launch | Partnership / Agreement | Loan / Debt | Related Party Transaction | Corporate Restructuring | Operational Update | Insolvency / Default | Other
+
+STEP 2: DETERMINE SENTIMENT
+Select only one: Positive | Negative | Neutral | Mixed
+
+STEP 3: DETERMINE MATERIALITY
+Select: High | Medium | Low
+
+STEP 4: EXTRACT KEY NUMBERS
+Extract only important numerical information explicitly available in the announcement (metric, value, context).
+
+STEP 5: EXPLAIN WHY IT MATTERS
+Briefly explain the potential business significance (1-3 sentences).
+
+STEP 6: IDENTIFY POSITIVE FACTORS, RISKS AND MISSING INFORMATION
+positive_factors, risks_or_concerns, missing_information (as concise arrays).
+
+STEP 7: CREATE A ONE-LINE TRADER SUMMARY
+Create a short summary (<30 words) containing the most important event and numbers.
+
+OUTPUT SCHEMA:
+{
+  "company_name": "${companyName}",
+  "scrip_code": "${scripCode}",
+  "category": "Category Name",
+  "quick_view": {
+    "sentiment": "Positive | Negative | Neutral | Mixed",
+    "materiality": "High | Medium | Low",
+    "headline_summary": "Under 15 words headline summary",
+    "key_numbers_short": "Compact numbers e.g. ₹450 Cr | 24 Months or N/A"
+  },
+  "summary": "2-4 sentences plain English factual summary",
+  "key_points": [
+    "Key fact or resolution"
+  ],
+  "key_numbers": [
+    {
+      "metric": "Metric name",
+      "value": "Exact value with currency/units",
+      "context": "Brief context"
     }
-
-    if (descLower.includes('outcome') || typeLower.includes('outcome') || descLower.includes('board meeting')) {
-      return `CATEGORY: Board Meeting Outcome
-SPECIAL INSTRUCTIONS:
-- Extract all formal decisions, approvals, and resolutions passed by the board.
-- Extract any declared dividend (rate, face value, percentage, record date).
-- Extract any capital restructuring, fundraising, bonus issue, or stock split.
-- Extract appointments, resignations, or changes in Key Managerial Personnel (KMP) / Directors.
-- Note meeting start time and conclusion time if listed.`;
+  ],
+  "why_it_matters": "1-3 sentences explaining business significance",
+  "positive_factors": [
+    "Favourable factor"
+  ],
+  "risks_or_concerns": [
+    "Risk or limitation"
+  ],
+  "missing_information": [
+    "Missing relevant context"
+  ],
+  "important_dates": [
+    {
+      "event": "Event name",
+      "date": "Date mentioned"
     }
+  ],
+  "ai_assessment": "Concise assessment",
+  "confidence": {
+    "level": "High | Medium | Low",
+    "reason": "Reason for confidence level"
+  },
+  "one_line_summary": "Under 30 words fast summary for trader"
+}`;
 
-    if (descLower.includes('financial result') || descLower.includes('results') || descLower.includes('quarterly')) {
-      return `CATEGORY: Financial Results / Earnings
-SPECIAL INSTRUCTIONS:
-- Extract key financial metrics (Total Income/Revenue, EBITDA, Net Profit/PAT, EPS) for the current period vs previous period/YoY.
-- Mention whether results are Audited or Unaudited, Standalone or Consolidated.
-- Highlight any exceptional items, qualifications, or modifications in Auditor's Report.`;
-    }
-
-    if (descLower.includes('general meeting') || descLower.includes('agm') || descLower.includes('egm')) {
-      return `CATEGORY: General Meeting (AGM/EGM) Notice & Proceedings
-SPECIAL INSTRUCTIONS:
-- Extract Date, Time, and Venue/Mode (VC/OAVM) of the General Meeting.
-- Extract cut-off date for remote e-voting and voting window (start date/time to end date/time).
-- List key agenda items / special resolutions being proposed.`;
-    }
-
-    return `CATEGORY: General Corporate Announcement
-SPECIAL INSTRUCTIONS:
-- Extract core business intent, obligations, statutory compliances, or material events.
-- Highlight any operational, commercial, regulatory, or strategic implications.`;
+    return { systemPrompt, userPrompt };
   }
 
   /**
    * Generate structured summary and insights using Groq LLM
    */
-  async analyzeAnnouncement(announcement, contextText, rawTextLength = 0) {
-    const descriptor = announcement.Descriptor || '';
-    const typeofAnnounce = announcement.TypeofAnnounce || '';
-    const categoryInstructions = this.getCategoryInstructions(descriptor, typeofAnnounce);
+  async analyzeAnnouncement(announcement, documentText, rawTextLength = 0) {
+    const scripCode = announcement.SCRIP_CD || announcement.scripCode || 'N/A';
+    const companyName = announcement.CompanyName || announcement.companyName || 'N/A';
+    const { systemPrompt, userPrompt } = this.buildPrompt(announcement, documentText);
 
-    const systemPrompt = `You are a senior financial analyst and compliance expert specializing in Indian stock exchanges (BSE/NSE) and SEBI (Listing Obligations and Disclosure Requirements) Regulations.
-
-Your objective is to analyze corporate filing announcements and attached PDF document excerpts, and produce concise, highly accurate, and structured insights.
-
-Always respond in strictly valid JSON matching the exact schema required. Do NOT include markdown code blocks (such as \`\`\`json) in your final response if possible, or provide clean pure JSON.`;
-
-    const userPrompt = `ANNOUNCEMENT METADATA:
-- Scrip Code: ${announcement.SCRIP_CD || 'N/A'}
-- Company Name: ${announcement.CompanyName || 'N/A'}
-- Announcement Date/Time: ${announcement.DT_TM || 'N/A'}
-- Headline: ${announcement.HeadLine || 'N/A'}
-- News Body: ${announcement.NewsBody || 'N/A'}
-- Descriptor: ${announcement.Descriptor || 'N/A'}
-- Announcement Type: ${announcement.TypeofAnnounce || 'N/A'}
-- Meeting Date: ${announcement.DateofMeeting || 'N/A'}
-
-${categoryInstructions}
-
-RETRIEVED FILING DOCUMENT EXCERPTS:
-"""
-${contextText || announcement.NewsBody || 'No filing document text available.'}
-"""
-
-Please extract and structure the information into the following JSON schema:
-{
-  "scripCode": "${announcement.SCRIP_CD || ''}",
-  "companyName": "${announcement.CompanyName || ''}",
-  "announcementType": "${announcement.TypeofAnnounce || announcement.Descriptor || 'General'}",
-  "summary": "A 2-3 line plain-English summary highlighting the core action and purpose.",
-  "keyPoints": [
-    "Key resolution, fact, decision, or regulation reference",
-    "Specific details from the document"
-  ],
-  "importantDates": [
-    "Specific date mentioned in filing with its label, e.g., 'Book Closure: 19th Sep 2026 to 25th Sep 2026'"
-  ],
-  "materiality": "Low | Medium | High",
-  "materialityReasoning": "1-line explanation of why this is Low (routine compliance), Medium (moderate operational update), or High (price-sensitive/major event).",
-  "categorySpecificDetails": {
-    "descriptor": "${announcement.Descriptor || ''}",
-    "extractedDetails": {}
-  }
-}`;
-
-    logger.info(`Sending analysis request to Groq LLM (Model: ${config.groq.model}) for scrip: ${announcement.SCRIP_CD}...`);
+    logger.info(`Sending analysis request to Groq LLM (Model: ${config.groq.model}) for scrip: ${scripCode} (${companyName})...`);
 
     const result = await retryWithBackoff(async (attempt) => {
       try {
@@ -122,7 +184,7 @@ Please extract and structure the information into the following JSON schema:
           ],
           response_format: { type: 'json_object' },
           temperature: 0.1,
-          max_tokens: 1500
+          max_tokens: 2000
         });
 
         const rawContent = response.choices[0]?.message?.content || '{}';
@@ -130,21 +192,44 @@ Please extract and structure the information into the following JSON schema:
         try {
           parsed = JSON.parse(rawContent);
         } catch (e) {
-          // If JSON wrapped in backticks, clean it
           const cleaned = rawContent.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
           parsed = JSON.parse(cleaned);
         }
 
         return {
-          scripCode: parsed.scripCode || announcement.SCRIP_CD || '',
-          companyName: parsed.companyName || announcement.CompanyName || '',
-          announcementType: parsed.announcementType || announcement.TypeofAnnounce || announcement.Descriptor || 'General',
+          company_name: parsed.company_name || companyName,
+          scrip_code: parsed.scrip_code || scripCode,
+          category: parsed.category || announcement.Descriptor || announcement.TypeofAnnounce || 'Other',
+          quick_view: {
+            sentiment: ['Positive', 'Negative', 'Neutral', 'Mixed'].includes(parsed.quick_view?.sentiment)
+              ? parsed.quick_view.sentiment
+              : 'Neutral',
+            materiality: ['High', 'Medium', 'Low'].includes(parsed.quick_view?.materiality)
+              ? parsed.quick_view.materiality
+              : 'Medium',
+            headline_summary: parsed.quick_view?.headline_summary || announcement.HeadLine || '',
+            key_numbers_short: parsed.quick_view?.key_numbers_short || 'N/A'
+          },
           summary: parsed.summary || 'Summary unavailable.',
-          keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
-          importantDates: Array.isArray(parsed.importantDates) ? parsed.importantDates : [],
-          materiality: ['Low', 'Medium', 'High'].includes(parsed.materiality) ? parsed.materiality : 'Medium',
-          materialityReasoning: parsed.materialityReasoning || '',
-          categorySpecificDetails: parsed.categorySpecificDetails || {},
+          key_points: Array.isArray(parsed.key_points) ? parsed.key_points : [],
+          key_numbers: Array.isArray(parsed.key_numbers) ? parsed.key_numbers : [],
+          why_it_matters: parsed.why_it_matters || '',
+          positive_factors: Array.isArray(parsed.positive_factors) ? parsed.positive_factors : [],
+          risks_or_concerns: Array.isArray(parsed.risks_or_concerns) ? parsed.risks_or_concerns : [],
+          missing_information: Array.isArray(parsed.missing_information) ? parsed.missing_information : [],
+          important_dates: Array.isArray(parsed.important_dates) ? parsed.important_dates : [],
+          ai_assessment: parsed.ai_assessment || '',
+          confidence: {
+            level: ['High', 'Medium', 'Low'].includes(parsed.confidence?.level) ? parsed.confidence.level : 'Medium',
+            reason: parsed.confidence?.reason || ''
+          },
+          one_line_summary: parsed.one_line_summary || '',
+
+          // Backward compatibility mappings for frontend
+          companyName: parsed.company_name || companyName,
+          scripCode: parsed.scrip_code || scripCode,
+          materiality: parsed.quick_view?.materiality || 'Medium',
+          sentiment: parsed.quick_view?.sentiment || 'Neutral',
           rawTextLength: rawTextLength,
           processedAt: new Date().toISOString()
         };
@@ -156,7 +241,7 @@ Please extract and structure the information into the following JSON schema:
       retries: 3,
       delayMs: 2000,
       factor: 2,
-      name: `Groq LLM for ${announcement.SCRIP_CD}`
+      name: `Groq LLM for ${scripCode}`
     });
 
     return result;
