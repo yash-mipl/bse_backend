@@ -29,7 +29,7 @@ export function getKolkataBseTimestamps(date = new Date()) {
   return {
     Hr: String(hour === 24 ? 0 : hour),
     Min: String(minute),
-    Sec: String(second),
+    Sec: '0',
     Tradedt: `${year}${month}${day}`,
   };
 }
