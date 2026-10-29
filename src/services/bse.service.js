@@ -3,7 +3,10 @@ import https from 'node:https';
 import axios from 'axios';
 import { config } from '../config/env.js';
 import { logger } from '../utils/logger.js';
-import { getKolkataBseTimestamps, resolveBseTimeFilters } from '../utils/bseDateTime.js';
+import {
+  getKolkataBseTimestamps,
+  getKolkataBseTimestampsForMinuteOffset,
+} from '../utils/bseDateTime.js';
 
 const httpAgent = new http.Agent({ keepAlive: true });
 const httpsAgent = new https.Agent({ keepAlive: true });
@@ -17,6 +20,11 @@ export class BseServiceError extends Error {
   }
 }
 
+function cacheKeyForFilters(timeFilters) {
+  const filters = timeFilters ?? getKolkataBseTimestamps();
+  return `${filters.Tradedt}|${filters.Hr}|${filters.Min}|${filters.Sec}`;
+}
+
 export class BseService {
   constructor() {
     this.client = axios.create({
@@ -28,6 +36,11 @@ export class BseService {
       httpAgent,
       httpsAgent,
     });
+
+    /** @type {Map<string, { data: Array<Object>, fetchedAt: number }>} */
+    this.responseCache = new Map();
+    /** @type {Map<string, Promise<{ data: Array<Object>, bseApiMs: number, fromCache: boolean }>>} */
+    this.inflight = new Map();
   }
 
   buildRequestPayload(timeFilters = null) {
@@ -74,17 +87,21 @@ export class BseService {
     });
   }
 
+  getFreshCache(key) {
+    const cached = this.responseCache.get(key);
+    if (!cached) return null;
+
+    const ageMs = Date.now() - cached.fetchedAt;
+    if (ageMs > config.bse.cacheTtlMs) return null;
+
+    return cached;
+  }
+
   /**
-   * Fetch corporate announcements from the external BSE API.
+   * Single BSE POST for one timestamp snapshot.
    * @returns {Promise<{ data: Array<Object>, bseApiMs: number }>}
    */
-  async fetchCorporateAnnouncements(timeFilters = null) {
-    if (!config.bse.username || !config.bse.password) {
-      throw new BseServiceError('BSE credentials are not configured on the server.', {
-        statusCode: 500,
-      });
-    }
-
+  async fetchOnce(timeFilters = null) {
     const requestBody = this.buildRequestPayload(timeFilters);
     const bseStarted = performance.now();
 
@@ -123,6 +140,71 @@ export class BseService {
         statusCode: 502,
       });
     }
+  }
+
+  /**
+   * Fetch corporate announcements from BSE with short TTL cache + in-flight coalesce.
+   * Optional minute fallbacks run server-side so the frontend only waits for one round-trip.
+   * @param {{ Hr: string, Min: string, Sec: string, Tradedt: string } | null} timeFilters
+   * @param {{ fallbackMinutes?: number }} [options]
+   * @returns {Promise<{ data: Array<Object>, bseApiMs: number, fromCache: boolean }>}
+   */
+  async fetchCorporateAnnouncements(timeFilters = null, { fallbackMinutes = 0 } = {}) {
+    if (!config.bse.username || !config.bse.password) {
+      throw new BseServiceError('BSE credentials are not configured on the server.', {
+        statusCode: 500,
+      });
+    }
+
+    const primaryFilters = timeFilters ?? getKolkataBseTimestamps();
+    const cacheKey = `${cacheKeyForFilters(primaryFilters)}|fb:${fallbackMinutes}`;
+
+    const fresh = this.getFreshCache(cacheKey);
+    if (fresh) {
+      return { data: fresh.data, bseApiMs: 0, fromCache: true };
+    }
+
+    const existing = this.inflight.get(cacheKey);
+    if (existing) {
+      return existing;
+    }
+
+    const promise = this.fetchWithFallbacks(primaryFilters, fallbackMinutes)
+      .then((result) => {
+        this.responseCache.set(cacheKey, {
+          data: result.data,
+          fetchedAt: Date.now(),
+        });
+        return { ...result, fromCache: false };
+      })
+      .finally(() => {
+        this.inflight.delete(cacheKey);
+      });
+
+    this.inflight.set(cacheKey, promise);
+    return promise;
+  }
+
+  async fetchWithFallbacks(primaryFilters, fallbackMinutes) {
+    let totalBseMs = 0;
+    const first = await this.fetchOnce(primaryFilters);
+    totalBseMs += first.bseApiMs;
+
+    if (first.data.length > 0 || fallbackMinutes <= 0) {
+      return { data: first.data, bseApiMs: totalBseMs };
+    }
+
+    for (let offset = -1; offset >= -fallbackMinutes; offset -= 1) {
+      const filters = getKolkataBseTimestampsForMinuteOffset(offset);
+      const result = await this.fetchOnce(filters);
+      totalBseMs += result.bseApiMs;
+
+      if (result.data.length > 0) {
+        return { data: result.data, bseApiMs: totalBseMs };
+      }
+    }
+
+    return { data: [], bseApiMs: totalBseMs };
   }
 }
 

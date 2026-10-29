@@ -35,6 +35,17 @@ export function getKolkataBseTimestamps(date = new Date()) {
 }
 
 /**
+ * Build timestamps for Kolkata "now" minus a minute offset (BSE empty-snapshot fallback).
+ * @param {number} minuteOffset
+ * @param {Date} [baseDate]
+ * @returns {{ Hr: string, Min: string, Sec: string, Tradedt: string }}
+ */
+export function getKolkataBseTimestampsForMinuteOffset(minuteOffset = 0, baseDate = new Date()) {
+  const adjusted = new Date(baseDate.getTime() + minuteOffset * 60_000);
+  return getKolkataBseTimestamps(adjusted);
+}
+
+/**
  * Validate optional time filters from the frontend.
  * Returns normalized filters or null when none provided.
  * @param {unknown} filters

@@ -42,6 +42,8 @@ export const config = {
     username: process.env.BSE_USERNAME || '',
     password: process.env.BSE_PASSWORD || '',
     timeoutMs: parseInt(process.env.BSE_API_TIMEOUT_MS || '10000', 10),
+    /** Serve last good BSE snapshot instantly within this window (ms). */
+    cacheTtlMs: parseInt(process.env.BSE_CACHE_TTL_MS || '400', 10),
   },
 
   cors: {
